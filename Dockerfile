@@ -47,4 +47,4 @@ COPY handler.py /app/handler.py
 
 WORKDIR /app
 
-CMD ["/app/irodori-server/.venv/bin/python", "/app/handler.py"]
+CMD ["/app/.venv/bin/python", "/app/handler.py"]
