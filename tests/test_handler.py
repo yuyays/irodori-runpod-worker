@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import base64
 import os
+import sys
+import types
 import unittest
 from unittest.mock import patch
 
-from handler import SynthesisInput, parse_job, temporary_voice
+from handler import SynthesisInput, handler, main, parse_job, temporary_voice
 
 
 def valid_job(**overrides: object) -> dict[str, object]:
@@ -81,6 +83,22 @@ class TemporaryVoiceTests(unittest.TestCase):
                 raise RuntimeError("synthesis failed")
 
         self.assertEqual(self.registry.deleted_id, self.registry.written_id)
+
+
+class StartupTests(unittest.TestCase):
+    def test_registers_handler_before_importing_irodori_runtime(self) -> None:
+        started_with: list[dict[str, object]] = []
+        fake_runpod = types.SimpleNamespace(
+            serverless=types.SimpleNamespace(
+                start=lambda config: started_with.append(config)
+            )
+        )
+
+        with patch.dict(sys.modules, {"runpod": fake_runpod}):
+            main()
+
+        self.assertEqual(started_with, [{"handler": handler}])
+        self.assertNotIn("irodori_openai_tts.app", sys.modules)
 
 
 if __name__ == "__main__":

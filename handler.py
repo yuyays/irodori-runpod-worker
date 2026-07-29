@@ -144,9 +144,7 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> None:
     import runpod
-    from irodori_openai_tts.app import startup
 
-    startup()
     runpod.serverless.start({"handler": handler})
 
 
