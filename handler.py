@@ -4,9 +4,9 @@ import asyncio
 import base64
 import binascii
 import os
-import threading
 import uuid
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,8 +26,8 @@ ALLOWED_REFERENCE_SUFFIXES = {
     ".wav",
     ".webm",
 }
-_SYNTHESIS_LOOP = asyncio.new_event_loop()
-_SYNTHESIS_LOCK = threading.Lock()
+_SYNTHESIS_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="irodori")
+_SYNTHESIS_LOOP: asyncio.AbstractEventLoop | None = None
 
 
 @dataclass(frozen=True)
@@ -103,6 +103,21 @@ def temporary_voice(registry: Any, request: SynthesisInput) -> Iterator[str]:
         registry.delete_file(voice_id)
 
 
+def _run_speech_in_worker(async_speech: Any, speech_request: Any) -> Any:
+    global _SYNTHESIS_LOOP
+    if _SYNTHESIS_LOOP is None:
+        _SYNTHESIS_LOOP = asyncio.new_event_loop()
+    return _SYNTHESIS_LOOP.run_until_complete(async_speech(speech_request))
+
+
+def run_speech(async_speech: Any, speech_request: Any) -> Any:
+    return _SYNTHESIS_EXECUTOR.submit(
+        _run_speech_in_worker,
+        async_speech,
+        speech_request,
+    ).result()
+
+
 def handler(job: dict[str, Any]) -> dict[str, Any]:
     request = parse_job(job)
 
@@ -125,10 +140,7 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
                 max_seconds=30.0,
             ),
         )
-        with _SYNTHESIS_LOCK:
-            response = _SYNTHESIS_LOOP.run_until_complete(
-                create_speech(speech_request)
-            )
+        response = run_speech(create_speech, speech_request)
         audio = bytes(response.body)
         if len(audio) > MAX_OUTPUT_BYTES:
             raise ValueError(

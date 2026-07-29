@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import os
 import sys
@@ -7,7 +8,14 @@ import types
 import unittest
 from unittest.mock import patch
 
-from handler import SynthesisInput, handler, main, parse_job, temporary_voice
+from handler import (
+    SynthesisInput,
+    handler,
+    main,
+    parse_job,
+    run_speech,
+    temporary_voice,
+)
 
 
 def valid_job(**overrides: object) -> dict[str, object]:
@@ -99,6 +107,24 @@ class StartupTests(unittest.TestCase):
 
         self.assertEqual(started_with, [{"handler": handler}])
         self.assertNotIn("irodori_openai_tts.app", sys.modules)
+
+
+class AsyncBridgeTests(unittest.TestCase):
+    def test_runs_speech_on_a_dedicated_persistent_loop(self) -> None:
+        async def identify_loop(request: str) -> tuple[str, int]:
+            return request, id(asyncio.get_running_loop())
+
+        async def invoke_from_runpod_loop() -> tuple[tuple[str, int], tuple[str, int]]:
+            return (
+                run_speech(identify_loop, "first"),
+                run_speech(identify_loop, "second"),
+            )
+
+        first, second = asyncio.run(invoke_from_runpod_loop())
+
+        self.assertEqual(first[0], "first")
+        self.assertEqual(second[0], "second")
+        self.assertEqual(first[1], second[1])
 
 
 if __name__ == "__main__":
