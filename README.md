@@ -17,7 +17,11 @@ Submit requests through RunPod's asynchronous `/run` endpoint:
     "text": "これはテストです。",
     "reference_audio_base64": "<base64>",
     "reference_filename": "reference.webm",
-    "num_steps": 10
+    "num_steps": 40,
+    "seed": 200,
+    "cfg_scale_speaker": 5.0,
+    "speaker_kv_scale": 1.2,
+    "chunking_enabled": false
   }
 }
 ```
@@ -36,10 +40,23 @@ Successful jobs return:
 Reference audio is written only to the worker's temporary filesystem and is
 deleted in a `finally` block after every job.
 
-The adapter intentionally exposes only the bounded `num_steps` option. Text is
-limited to 500 characters, decoded reference audio to 5 MiB, generated WAV
-audio to 7 MiB, and generated duration to 30 seconds so requests and responses
-remain below RunPod's payload limits.
+The adapter exposes bounded inference controls for controlled quality
+experiments:
+
+- `num_steps`: integer from 1 to 40; defaults to `10`
+- `seed`: optional integer from 0 to 4294967295; omitted uses a random seed
+- `cfg_scale_speaker`: number from 0 to 20; defaults to `5.0`
+- `speaker_kv_scale`: optional number from 0.5 to 2.0
+- `chunking_enabled`: boolean; defaults to `false`
+
+Text is limited to 500 characters, decoded reference audio to 5 MiB, generated
+WAV audio to 7 MiB, and generated duration to 30 seconds so requests and
+responses remain below RunPod's payload limits.
+
+For a v3 baseline, keep the reference audio and target text fixed, use the same
+seed, and compare `num_steps` values `10`, `20`, and `40`. Repeat the matrix with
+multiple seeds before drawing quality conclusions. Test chunking separately
+because it changes text segmentation rather than only sampling quality.
 
 ## RunPod endpoint settings
 

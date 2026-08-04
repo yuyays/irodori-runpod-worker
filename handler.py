@@ -36,6 +36,10 @@ class SynthesisInput:
     reference_audio: bytes
     reference_suffix: str
     num_steps: int
+    seed: int | None = None
+    cfg_scale_speaker: float = 5.0
+    speaker_kv_scale: float | None = None
+    chunking_enabled: bool = False
 
 
 def parse_job(job: dict[str, Any]) -> SynthesisInput:
@@ -81,11 +85,47 @@ def parse_job(job: dict[str, Any]) -> SynthesisInput:
     if not 1 <= num_steps <= 40:
         raise ValueError("input.num_steps must be between 1 and 40")
 
+    seed = payload.get("seed")
+    if seed is not None:
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise ValueError("input.seed must be an integer")
+        if not 0 <= seed <= 2**32 - 1:
+            raise ValueError("input.seed must be between 0 and 4294967295")
+
+    cfg_scale_speaker = payload.get("cfg_scale_speaker", 5.0)
+    if (
+        isinstance(cfg_scale_speaker, bool)
+        or not isinstance(cfg_scale_speaker, (int, float))
+    ):
+        raise ValueError("input.cfg_scale_speaker must be a number")
+    if not 0.0 <= cfg_scale_speaker <= 20.0:
+        raise ValueError("input.cfg_scale_speaker must be between 0 and 20")
+    cfg_scale_speaker = float(cfg_scale_speaker)
+
+    speaker_kv_scale = payload.get("speaker_kv_scale")
+    if speaker_kv_scale is not None:
+        if (
+            isinstance(speaker_kv_scale, bool)
+            or not isinstance(speaker_kv_scale, (int, float))
+        ):
+            raise ValueError("input.speaker_kv_scale must be a number")
+        if not 0.5 <= speaker_kv_scale <= 2.0:
+            raise ValueError("input.speaker_kv_scale must be between 0.5 and 2")
+        speaker_kv_scale = float(speaker_kv_scale)
+
+    chunking_enabled = payload.get("chunking_enabled", False)
+    if not isinstance(chunking_enabled, bool):
+        raise ValueError("input.chunking_enabled must be a boolean")
+
     return SynthesisInput(
         text=text,
         reference_audio=reference_audio,
         reference_suffix=suffix,
         num_steps=num_steps,
+        seed=seed,
+        cfg_scale_speaker=cfg_scale_speaker,
+        speaker_kv_scale=speaker_kv_scale,
+        chunking_enabled=chunking_enabled,
     )
 
 
@@ -136,7 +176,10 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
             response_format="wav",
             irodori=IrodoriOptions(
                 num_steps=request.num_steps,
-                chunking_enabled=False,
+                seed=request.seed,
+                cfg_scale_speaker=request.cfg_scale_speaker,
+                speaker_kv_scale=request.speaker_kv_scale,
+                chunking_enabled=request.chunking_enabled,
                 max_seconds=30.0,
             ),
         )
